@@ -32,6 +32,9 @@ export const AuthProvider = ({ children }) => {
     const res = await signupApi(formData);
     if (res.data?.success && res.data?.user) {
       setUser(res.data.user);
+      if (res.data?.token) {
+        localStorage.setItem('token', res.data.token);
+      }
     }
     return res.data;
   };
@@ -40,6 +43,9 @@ export const AuthProvider = ({ children }) => {
     const res = await loginApi(formData);
     if (res.data?.success && res.data?.user) {
       setUser(res.data.user);
+      if (res.data?.token) {
+        localStorage.setItem('token', res.data.token);
+      }
     }
     return res.data;
   };
@@ -50,6 +56,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
+      localStorage.removeItem('token');
       setUser(null);
     }
   };
@@ -58,21 +65,17 @@ export const AuthProvider = ({ children }) => {
     await checkAuth();
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        isAuthenticated: !!user,
-        signup,
-        login,
-        logout,
-        refreshUser,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = {
+    user,
+    loading,
+    isAuthenticated: !!user,
+    signup,
+    login,
+    logout,
+    refreshUser,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

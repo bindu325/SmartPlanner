@@ -2,11 +2,42 @@ import axios from 'axios';
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
-  withCredentials: true, // Crucial for sending & receiving HttpOnly cookies across origins
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Request interceptor: attach token from localStorage if present (for cross-domain hosting)
+API.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor: automatically store token or clean up on 401
+API.interceptors.response.use(
+  (response) => {
+    if (response.data?.token) {
+      localStorage.setItem('token', response.data.token);
+    }
+    return response;
+  },
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // If unauthorized on protected routes, remove stale token
+      if (!error.config.url.includes('/auth/login') && !error.config.url.includes('/auth/signup')) {
+        localStorage.removeItem('token');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Auth Services
 export const signupApi = (data) => API.post('/auth/signup', data);

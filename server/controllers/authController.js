@@ -16,7 +16,7 @@ const sendTokenResponse = (user, statusCode, res, message = 'Success') => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   };
 
   res.cookie('token', token, cookieOptions);
@@ -24,6 +24,7 @@ const sendTokenResponse = (user, statusCode, res, message = 'Success') => {
   res.status(statusCode).json({
     success: true,
     message,
+    token, // Provide token for cross-domain Authorization header support
     user: {
       id: user._id,
       name: user.name,
@@ -64,73 +65,75 @@ exports.signup = async (req, res, next) => {
       password,
     });
 
-    sendTokenResponse(user, 201, res, 'Account created successfully!');
+    sendTokenResponse(user, 201, res, 'Registration successful!');
   } catch (err) {
     next(err);
   }
 };
 
-// @desc    Authenticate user & get token
+// @desc    Login user
 // @route   POST /api/auth/login
 // @access  Public
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
+    // Validate email & password presence
     if (!email || !password) {
-      return res.status(400).json({ success: false, error: 'Please provide email and password' });
+      return res.status(400).json({ success: false, error: 'Please enter both email and password' });
     }
 
-    // Check for user (include password field for matching)
+    // Check for user
     const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+password');
     if (!user) {
       return res.status(401).json({ success: false, error: 'Invalid email or password.' });
     }
 
-    // Check password
+    // Check if password matches
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
       return res.status(401).json({ success: false, error: 'Invalid email or password.' });
     }
 
-    sendTokenResponse(user, 200, res, 'Signed in successfully!');
+    sendTokenResponse(user, 200, res, 'Logged in successfully!');
   } catch (err) {
     next(err);
   }
 };
 
-// @desc    Get currently authenticated user
+// @desc    Get current logged in user
 // @route   GET /api/auth/me
 // @access  Private
-exports.getMe = async (req, res) => {
+exports.getMe = async (req, res, next) => {
   try {
+    const user = await User.findById(req.user.id);
     res.status(200).json({
       success: true,
       user: {
-        id: req.user._id,
-        name: req.user.name,
-        email: req.user.email,
-        createdAt: req.user.createdAt,
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        createdAt: user.createdAt,
       },
     });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    next(err);
   }
 };
 
-// @desc    Logout user & clear cookie
+// @desc    Log user out / clear cookie
 // @route   POST /api/auth/logout
-// @access  Private / Public
-exports.logout = async (req, res) => {
+// @access  Public
+exports.logout = async (req, res, next) => {
   res.cookie('token', 'none', {
+    expires: new Date(Date.now() + 10 * 1000),
     httpOnly: true,
-    expires: new Date(Date.now() + 5 * 1000), // expires in 5s
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
   });
 
   res.status(200).json({
     success: true,
-    message: 'Logged out successfully',
+    message: 'User logged out successfully',
   });
 };

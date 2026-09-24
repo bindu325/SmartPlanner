@@ -19,24 +19,29 @@ app.use(express.json());
 // Cookie parser
 app.use(cookieParser());
 
-// Enable CORS with credentials for React frontend
-const allowedOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:5173',
-];
-
+// Robust CORS for local dev + Render + Vercel deployment
 app.use(
   cors({
     origin: function (origin, callback) {
       // allow requests with no origin (like mobile apps, curl, postman)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      
+      const clientUrl = process.env.CLIENT_URL;
+      const isAllowed = 
+        origin === clientUrl ||
+        origin.endsWith('.vercel.app') ||
+        origin.endsWith('.onrender.com') ||
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1');
+
+      if (isAllowed || process.env.NODE_ENV === 'development') {
         return callback(null, true);
       }
-      return callback(new Error('CORS not allowed for this origin: ' + origin));
+      return callback(null, true); // Permissive origin with credentials allowed
     },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   })
 );
 
